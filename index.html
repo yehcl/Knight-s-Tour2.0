@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>騎士巡邏 - 手動步進版</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2c3e50;
+            color: white;
+            font-family: sans-serif;
+            margin-top: 20px;
+        }
+        canvas {
+            border: 5px solid #34495e;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-color: #eee;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #769656;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: 0.2s;
+        }
+        button:hover { background-color: #a3d160; }
+        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        #stepBtn { background-color: #3498db; }
+        #stepBtn:hover { background-color: #2980b9; }
+        #status { margin: 15px 0; font-weight: bold; font-size: 1.1em; color: #ecf0f1; }
+    </style>
+</head>
+<body>
+
+    <h1>騎士巡邏 (Knight's Tour)</h1>
+    <div id="status">點擊「生成路徑」後開始</div>
+    
+    <canvas id="chessBoard" width="560" height="560"></canvas>
+    
+    <div class="controls">
+        <button onclick="initNewTour()">1. 生成新路徑 (重新開始)</button>
+        <button id="stepBtn" onclick="nextStep()" disabled>2. 下一步</button>
+        <button id="autoBtn" onclick="startAuto()" disabled>自動播放</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('chessBoard');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('status');
+        const stepBtn = document.getElementById('stepBtn');
+        const autoBtn = document.getElementById('autoBtn');
+        
+        const N = 8;
+        const tileSize = canvas.width / N;
+        const DX = [1, 2, 2, 1, -1, -2, -2, -1];
+        const DY = [2, 1, -1, -2, -2, -1, 1, 2];
+        
+        let path = [];
+        let currentStepIdx = 0;
+        let animationTimer = null;
+
+        function isValid(x, y, board) {
+            return x >= 0 && x < N && y >= 0 && y < N && board[x][y] === 0;
+        }
+
+        function getDegree(x, y, board) {
+            let count = 0;
+            for (let i = 0; i < 8; i++) {
+                if (isValid(x + DX[i], y + DY[i], board)) count++;
+            }
+            return count;
+        }
+
+        function solveTour() {
+            let board = Array.from({ length: N }, () => Array(N).fill(0));
+            let currX = Math.floor(Math.random() * N);
+            let currY = Math.floor(Math.random() * N);
+            let tempPath = [[currX, currY]];
+            board[currX][currY] = 1;
+
+            for (let step = 1; step < N * N; step++) {
+                let minDegIdx = -1;
+                let minDeg = 9;
+                let directions = [0,1,2,3,4,5,6,7].sort(() => Math.random() - 0.5);
+                for (let i of directions) {
+                    let nextX = currX + DX[i], nextY = currY + DY[i];
+                    if (isValid(nextX, nextY, board)) {
+                        let degree = getDegree(nextX, nextY, board);
+                        if (degree < minDeg) { minDeg = degree; minDegIdx = i; }
+                    }
+                }
+                if (minDegIdx === -1) return null;
+                currX += DX[minDegIdx]; currY += DY[minDegIdx];
+                board[currX][currY] = 1;
+                tempPath.push([currX, currY]);
+            }
+            return tempPath;
+        }
+
+        function drawBoard() {
+            for (let i = 0; i < N; i++) {
+                for (let j = 0; j < N; j++) {
+                    ctx.fillStyle = (i + j) % 2 === 0 ? '#eeeed2' : '#769656';
+                    ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                }
+            }
+        }
+
+        function renderStep(step) {
+            const [x, y] = path[step];
+            const centerX = x * tileSize + tileSize / 2;
+            const centerY = y * tileSize + tileSize / 2;
+
+            if (step > 0) {
+                const [prevX, prevY] = path[step - 1];
+                ctx.beginPath();
+                ctx.moveTo(prevX * tileSize + tileSize / 2, prevY * tileSize + tileSize / 2);
+                ctx.lineTo(centerX, centerY);
+                ctx.strokeStyle = "rgba(231, 76, 60, 0.8)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = "#2c3e50";
+            ctx.font = "bold 16px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(step + 1, centerX, centerY);
+            
+            statusText.innerText = `目前步數：${step + 1} / 64`;
+        }
+
+        function initNewTour() {
+            clearTimeout(animationTimer);
+            path = solveTour();
+            if (!path) {
+                statusText.innerText = "生成失敗，請重試";
+                return;
+            }
+            currentStepIdx = 0;
+            drawBoard();
+            stepBtn.disabled = false;
+            autoBtn.disabled = false;
+            statusText.innerText = "路徑已生成，請點擊「下一步」或「自動播放」";
+        }
+
+        function nextStep() {
+            if (currentStepIdx < path.length) {
+                renderStep(currentStepIdx);
+                currentStepIdx++;
+            }
+            if (currentStepIdx === path.length) {
+                statusText.innerText = "🎉 巡邏完成！";
+                stepBtn.disabled = true;
+                autoBtn.disabled = true;
+            }
+        }
+
+        function startAuto() {
+            stepBtn.disabled = true;
+            autoBtn.disabled = true;
+            const play = () => {
+                if (currentStepIdx < path.length) {
+                    nextStep();
+                    animationTimer = setTimeout(play, 100);
+                }
+            };
+            play();
+        }
+
+        drawBoard();
+    </script>
+</body>
+</html>
